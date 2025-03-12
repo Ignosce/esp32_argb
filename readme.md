@@ -1,5 +1,5 @@
 ## ESP32ARGB
-My attempt to DIY ARGB effects suited my needs.
+My attempt to DIY ARGB effects suited my needs with spare ESP32.
 
 ## Modes
 - Off
