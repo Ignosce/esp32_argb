@@ -1,37 +1,40 @@
 #include <FastLED.h>
 #include <time.h>
+#include <ezButton.h>
 
 #define DATA_PIN 14
 #define NUM_LEDS 10  // LED count
 
-// different delays to choose
-#define DELAY_0 10
-#define DELAY_02 30
-#define DELAY_1 50
-#define DELAY_2 100
+#define DELAY_COLOR_CHASE 45
+#define DELAY_RAINBOW 15
+#define DELAY_RAINBOW_CHASE 45
+#define DELAY_SPARKS_FLICKER 30
+#define LED_SPARKS_SPEED 0.98
+
+#define BUTTON_1 12
+#define DEBOUNCE_TIME 50
+ezButton button_1(BUTTON_1);
 
 CRGB leds[NUM_LEDS];
 int index_colors = 0;
+
+// color palettes
 CHSV colors[3] = { CHSV(128, 200, 255), CHSV(117, 200, 255), CHSV(122, 200, 255) };
 CHSV colors_2[3] = { CHSV(128, 200, 255), CHSV(171, 200, 255), CHSV(213, 200, 255) };
-
-#define SWITCH_PIN1 16
-#define SWITCH_PIN2 17
-#define DEBOUNCE_DELAY 100
 
 enum Modes { OFF,
              FLICKER,
              COLOR_CHASE,
+             RAINBOW,
+             RAINBOW_CHASE,
              NUM_MODES };
 int currentMode = FLICKER;
-unsigned long lastDebounceTime = 0;
-bool buttonPressed = false;
 
-void setup() {
-  pinMode(SWITCH_PIN1, OUTPUT);
-  digitalWrite(SWITCH_PIN1, LOW);  // Act as ground
-  pinMode(SWITCH_PIN2, INPUT_PULLUP);
+unsigned long current_Mills = 0;
+unsigned long previous_Mills;
 
+void setup() {;
+  button_1.setDebounceTime(DEBOUNCE_TIME);
   FastLED.addLeds<WS2812B, DATA_PIN, GRB>(leds, NUM_LEDS);
   srand(time(NULL));
   Serial.begin(9600);
@@ -101,19 +104,16 @@ void led_sparks(int FLICKER_DELAY, float speed) {
   delay(FLICKER_DELAY);
 }
 
-// circle
-unsigned long current_Mills = 0;
-unsigned long previous_Mills;
-int circle_index = 0;
-
+// color chase
 void led_color_chase(int DELAY) {
+  static int color_chase_index = 0;
   current_Mills = millis();
   if (current_Mills - previous_Mills > (unsigned long)DELAY) {
     previous_Mills = current_Mills;
-    leds[circle_index] = colors_2[index_colors];
+    leds[color_chase_index] = colors_2[index_colors];
     FastLED.show();
-    circle_index = (circle_index + 1) % NUM_LEDS;
-    if (circle_index == 0) {
+    color_chase_index = (color_chase_index + 1) % NUM_LEDS;
+    if (color_chase_index == 0) {
       index_colors++;
       if (index_colors > 2)
         index_colors = 0;
@@ -121,23 +121,53 @@ void led_color_chase(int DELAY) {
   }
 }
 
-// button check
-void checkButton() {
-  bool currentState = digitalRead(SWITCH_PIN2);
+// rainbow
+void led_rainbow(int DELAY) {
+  static uint8_t hue = 0;
+  static uint8_t colors_invterval = UINT8_MAX / (uint8_t)NUM_LEDS;
+  static uint8_t computed_hue[NUM_LEDS];
+  static bool colors_initialized = false;
 
-  if (currentState == LOW) {
-    if (!buttonPressed && (millis() - lastDebounceTime) > DEBOUNCE_DELAY) {
-      currentMode = (currentMode + 1) % NUM_MODES;
-      buttonPressed = true;
-      lastDebounceTime = millis();
+  if(!colors_initialized) {
+    for (int i=0; i < NUM_LEDS; i++) {
+      computed_hue[i] = (i+1) * colors_invterval;
     }
-  } else {
-    buttonPressed = false;
+    colors_initialized = true;
+  }
+
+  current_Mills = millis();
+  if (current_Mills - previous_Mills > (unsigned long)DELAY) {
+    previous_Mills = current_Mills;
+
+    for (int i=0; i < NUM_LEDS; i++) {
+      auto color = CHSV(computed_hue[i]+hue, 255, 255);
+      leds[i] = color;
+    }
+    FastLED.show();
+    hue++;
+  }
+}
+
+// rainbow chase
+void led_rainbow_chase(int DELAY) {
+  static uint8_t hue = 0;
+  static uint8_t index = 0;
+
+  current_Mills = millis();
+  if (current_Mills - previous_Mills > (unsigned long)DELAY) {
+    previous_Mills = current_Mills;
+    auto color = CHSV(hue, 255, 255);
+    leds[index] = color;
+    FastLED.show();
+    index = (index + 1) % NUM_LEDS;
+    hue = hue + 5;
   }
 }
 
 void loop() {
-  checkButton();
+  button_1.loop();
+  if (button_1.isPressed())
+    currentMode = (currentMode + 1) % NUM_MODES;
   switch (currentMode) {
     case OFF:
       fill_solid(leds, NUM_LEDS, CRGB::Black);
@@ -145,10 +175,16 @@ void loop() {
       delay(100);
       break;
     case FLICKER:
-      led_sparks(DELAY_02, 0.98);
+      led_sparks(DELAY_SPARKS_FLICKER, LED_SPARKS_SPEED);
       break;
     case COLOR_CHASE:
-      led_color_chase(DELAY_1);
+      led_color_chase(DELAY_COLOR_CHASE);
+      break;
+    case RAINBOW:
+      led_rainbow(DELAY_RAINBOW);
+      break;
+    case RAINBOW_CHASE:
+      led_rainbow_chase(DELAY_RAINBOW_CHASE);
       break;
   }
 }

@@ -5,6 +5,8 @@ My attempt to DIY ARGB effects suited my needs with spare ESP32.
 - Off
 - Flickering
 - Color chase
+- Rainbow
+- Rainbow chase
 
 ## Simplified schematic of current build
 ![schematic](simplified_schematic.png)
