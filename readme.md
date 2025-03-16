@@ -15,3 +15,4 @@ My attempt to DIY ARGB effects suited my needs with spare ESP32.
 - More data lines
 - Proper 5V for data (level shifter?)
 - More modes
+- Wireless interface
